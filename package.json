@@ -1,0 +1,35 @@
+{
+  "name": "allex_fswatchingserverruntimelib",
+  "version": "1.0.0",
+  "description": "AllexJS server run time lib for recursive file system directory watching",
+  "main": "index.js",
+  "scripts": {
+    "test": "allex-mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/allex-serverruntime-libs/fswatching.git"
+  },
+  "dependencies": {
+    "allex_arrayoperationslowlevellib": "1.x",
+    "allex_fstraversingserverruntimelib": "1.x",
+    "allex_fsutilsserverruntimelib": "1.x",
+    "allex_nodehelpersserverruntimelib": "1.x"
+  },
+  "keywords": [
+    "ecosystem:AllexJS",
+    "file",
+    "system",
+    "watching",
+    "server",
+    "run",
+    "time",
+    "lib"
+  ],
+  "author": "Andrija Petrovic <andrija.hers@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/allex-serverruntime-libs/fswatching/issues"
+  },
+  "homepage": "https://github.com/allex-serverruntime-libs/fswatching#readme"
+}
