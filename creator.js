@@ -113,7 +113,17 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
     return false;
   };
   DirWatcher.prototype.createSubWatcher = function (filename) {
-    this.addWatcher(this, this.depth+1, this.path.concat(filename), this.childctor, this.cbs);
+    this.addWatcher(this, this.depth+1, this.path.concat(filename), this.childctor, this.childCtorForNewWatcher(this.depth+1), this.cbs);
+  };
+  DirWatcher.prototype.childCtorForNewWatcher = function (depth) {
+    if (this.parnt) {
+      return this.parnt.childCtorForNewWatcher(depth);
+    }
+  };
+  DirWatcher.prototype.cbsForNewWatcher = function (depth) {
+    if (this.parnt) {
+      return this.parnt.cbsForNewWatcher(depth);
+    }
   };
   DirWatcher.prototype.eventTypes = [{name: 'rename', timeout:100}];
 
@@ -194,14 +204,14 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
     }
     path = path.slice();
     path.push(items[1]);
-    this.addWatcher(this, depth, path, depth===this.depth ? this.childctor : DirWatcher, this.paramForNewWatcher(depth), this.param2ForNewWatcher(depth));
+    this.addWatcher(this, depth, path, depth===this.depth ? this.childctor : DirWatcher, this.childCtorForNewWatcher(depth), this.cbsForNewWatcher(depth));
     this.handlePath(path, depth);
   };
   FsWatcher.prototype.createSubWatcher = function (filename) {
     var depth = 1;
-    this.addWatcher(this, depth, this.path.concat(filename), depth===this.depth ? this.childctor : DirWatcher, this.paramForNewWatcher(depth), this.param2ForNewWatcher(depth));
+    this.addWatcher(this, depth, [FsUtils.surePath(this.path), filename], depth===this.depth ? this.childctor : DirWatcher, this.childCtorForNewWatcher(depth), this.cbsForNewWatcher(depth));
   };
-  FsWatcher.prototype.paramForNewWatcher = function (depth) {
+  FsWatcher.prototype.childCtorForNewWatcher = function (depth) {
     if (depth < this.depth-1) {
       return DirWatcher;
     }
@@ -210,7 +220,7 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
     }
     return this.cbs;
   };
-  FsWatcher.prototype.param2ForNewWatcher = function (depth) {
+  FsWatcher.prototype.cbsForNewWatcher = function (depth) {
     if (depth < this.depth-1) {
       return;
     }
