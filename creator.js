@@ -6,6 +6,26 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
     fs = Node.Fs,
     Path = Node.Path;
 
+  function TimeoutHandler (cb, to) {
+    this.timeout = null;
+    if (cb) {
+      this.setTimeout(cb, to||0);
+    }
+  }
+  TimeoutHandler.prototype.destroy = function () {
+    this.clearTimeout();
+  };
+  TimeoutHandler.prototype.clearTimeout = function () {
+    if (this.timeout) {
+      lib.clearTimeout(this.timeout);
+    }
+    this.timeout = null;
+  };
+  TimeoutHandler.prototype.setTimeout = function (cb, to) {
+    this.clearTimeout();
+    this.timeout = lib.runNext(cb, to);
+  };
+
   function WatcherCollection () {
     this.watchers = new lib.Map();
   }
@@ -24,7 +44,7 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
     this.parnt = parnt;
     this.depth = depth;
     this.path = path;
-    this.timeout = null;
+    this.waiters = new lib.Map();
     this.listener = fs.watch(FsUtils.surePath(path), this.onChange.bind(this));
   }
   WatcherBase.prototype.destroy = function () {
@@ -32,10 +52,11 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
       this.listener.close();
     }
     this.listener = null;
-    if (this.timeout) {
-      lib.clearTimeout(this.timeout);
+    if (this.waiters) {
+      lib.containerDestroyAll(this.waiters);
+      this.waiters.destroy();
     }
-    this.timeout = null;
+    this.waiters = null;
     if (this.path && this.parnt && this.parnt.watchers) {
       this.parnt.watchers.remove(FsUtils.surePath(this.path));
     }
@@ -44,6 +65,7 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
     this.parnt = null;
   };
   WatcherBase.prototype.onChange = function (eventtype, filename) {
+    var evnt, waiter;
     if (eventtype === 'rename' && filename === this.path[this.path.length-1]) {
       //perhaps it's a child of mine that has my name?
       try {
@@ -57,7 +79,8 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
         return;
       }
     }
-    var evnt = ArryOperations.findElementWithProperty(this.eventTypes, 'name', eventtype);
+    evnt = ArryOperations.findElementWithProperty(this.eventTypes, 'name', eventtype);
+    console.log('onChange', eventtype, filename, '=> event', evnt);
     if (!evnt) {
       return;
     }
@@ -65,10 +88,12 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
       this['checkFor_'+eventtype](filename);
       return;
     }
-    if (this.timeout) {
-      lib.clearTimeout(this.timeout);
+    waiter = this.waiters.get(filename);
+    if (!waiter) {
+      this.waiters.add(filename, new TimeoutHandler(this['checkFor_'+eventtype].bind(this,filename), evnt.timeout));
+      return;
     }
-    this.timeout = lib.runNext(this['checkFor_'+eventtype].bind(this,filename), evnt.timeout);
+    waiter.setTimeout(this['checkFor_'+eventtype].bind(this,filename), evnt.timeout);
   };
 
 
@@ -89,17 +114,22 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
     WatcherBase.prototype.destroy.call(this);
   };
   DirWatcher.prototype.checkFor_rename = function (filename) {
-    var pathffn;
+    var pathffn, filetype;
     if (!this.childctor) {
       return;
     }
     try {
       pathffn = FsUtils.pathForFilename(this.path, filename);
-      if (FsUtils.fileType(pathffn) === 'd') {
+      filetype = FsUtils.fileType(pathffn);
+      console.log('filename', filename, '=> filetype', filetype);
+      if (filetype === 'd') {
         if (!this.removeWatcher(pathffn)) {
+          console.log('oli createSubWatcher?', filename);
           this.createSubWatcher(filename);
         }
-      } else {
+      } else if (filetype === 'f') {
+        console.log('filename was a file! on', this.path);
+      }else {
         this.removeWatcher(pathffn);
       }
     } catch(ignore) {/*console.error(ignore);*/}
@@ -113,6 +143,7 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
     return false;
   };
   DirWatcher.prototype.createSubWatcher = function (filename) {
+    console.log('kako bre createSubWatcher?', this.depth, this.parnt);
     this.addWatcher(this, this.depth+1, this.path.concat(filename), this.childctor, this.childCtorForNewWatcher(this.depth+1), this.cbs);
   };
   DirWatcher.prototype.childCtorForNewWatcher = function (depth) {
@@ -138,15 +169,20 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
   }
   FinalDirWatcher.prototype.checkFor_change = function (filename) {
     try {
-      if (FsUtils.fileType(FsUtils.pathForFilename(this.path, filename)) === 'f') {
+      if ('f' === FsUtils.fileType(FsUtils.pathForFilename(this.path, filename))) {
         this.invokeCreationOnFilename(filename);
       }
     } catch(ignore) {/*console.error(ignore);*/}
   };
   FinalDirWatcher.prototype.checkFor_rename = function (filename) {
+    var filetype;
     try {
-      if (!FsUtils.fileType(FsUtils.pathForFilename(this.path, filename))) {
+      filetype = FsUtils.fileType(FsUtils.pathForFilename(this.path, filename));
+      if (!filetype) {
         this.invokeDestructionOnFilename(filename);
+      }
+      if ('f' === filetype) {
+        this.onChange('change', filename);
       }
     } catch(ignore) {/*console.error(ignore);*/}
   };
@@ -175,21 +211,17 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
   }
 
   function FsWatcher (rootdir, depth, cbs, finalwatcherctor) {
-    DirWatcher.call(this, null, 0, pathToArry(rootdir), finalwatcherctor || FinalDirWatcher, cbs);
-    this.depth = depth;
+    DirWatcher.call(this, null, depth, pathToArry(rootdir), finalwatcherctor || FinalDirWatcher, cbs);
     this.handlePath([FsUtils.surePath(this.path)], 0);
   }
   lib.inherit(FsWatcher, DirWatcher);
-  FsWatcher.prototype.destroy = function () {
-    this.cbs = null;
-    this.depth = null;
-    this.path = null;
-    DirWatcher.prototype.destroy.call(this);
-  };
   FsWatcher.prototype.handlePath = function (path, depth) {
     depth = depth || 0;
     depth++;
     if (depth > this.depth) {
+      if (0 === this.depth) {
+        this.addWatcher(this, 0, path, this.childctor, this.cbs);
+      }
       return;
     }
     var fst = new FsTraverser(path, 1, this.onPathItem.bind(this, path, depth), 'd');
@@ -209,6 +241,9 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
   };
   FsWatcher.prototype.createSubWatcher = function (filename) {
     var depth = 1;
+    if (depth>this.depth) {
+      return;
+    }
     this.addWatcher(this, depth, [FsUtils.surePath(this.path), filename], depth===this.depth ? this.childctor : DirWatcher, this.childCtorForNewWatcher(depth), this.cbsForNewWatcher(depth));
   };
   FsWatcher.prototype.childCtorForNewWatcher = function (depth) {
