@@ -80,7 +80,7 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
       }
     }
     evnt = ArryOperations.findElementWithProperty(this.eventTypes, 'name', eventtype);
-    console.log('onChange', eventtype, filename, '=> event', evnt);
+    //console.log('onChange', eventtype, filename, '=> event', evnt);
     if (!evnt) {
       return;
     }
@@ -121,10 +121,10 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
     try {
       pathffn = FsUtils.pathForFilename(this.path, filename);
       filetype = FsUtils.fileType(pathffn);
-      console.log('filename', filename, '=> filetype', filetype);
+      //console.log('filename', filename, '=> filetype', filetype);
       if (filetype === 'd') {
         if (!this.removeWatcher(pathffn)) {
-          console.log('oli createSubWatcher?', filename);
+          //console.log('oli createSubWatcher?', filename);
           this.createSubWatcher(filename);
         }
       }else {
@@ -141,7 +141,7 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
     return false;
   };
   DirWatcher.prototype.createSubWatcher = function (filename) {
-    console.log('kako bre createSubWatcher?', this.depth, this.parnt);
+    //console.log('how come createSubWatcher?', this.depth, this.parnt);
     this.addWatcher(this, this.depth+1, this.path.concat(filename), this.childctor, this.childCtorForNewWatcher(this.depth+1), this.cbs);
   };
   DirWatcher.prototype.childCtorForNewWatcher = function (depth) {
