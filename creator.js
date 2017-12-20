@@ -127,8 +127,6 @@ function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
           console.log('oli createSubWatcher?', filename);
           this.createSubWatcher(filename);
         }
-      } else if (filetype === 'f') {
-        console.log('filename was a file! on', this.path);
       }else {
         this.removeWatcher(pathffn);
       }
