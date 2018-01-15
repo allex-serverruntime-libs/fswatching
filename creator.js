@@ -1,8 +1,7 @@
-function createFsWatcher (execlib, Node, FsUtils, ArryOperations, FsTraverser) {
+function createFsWatcher (lib, Node, FsUtils, ArryOperations, FsTraverser) {
   'use strict';
 
-  var lib = execlib.lib,
-    q = lib.q,
+  var q = lib.q,
     fs = Node.Fs,
     Path = Node.Path;
 
